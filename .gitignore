@@ -1,0 +1,24 @@
+# Ambiente local
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Segredos (nunca commitar)
+.env
+.env.local
+*.pem

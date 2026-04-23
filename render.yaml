@@ -1,0 +1,13 @@
+# Blueprint Render: https://render.com/docs/blueprint-spec
+# No dashboard: New + Blueprint → conecte o repositório com este arquivo na raiz.
+
+services:
+  - type: web
+    name: consulta-datasus-ms
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"

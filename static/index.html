@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Consulta Datasus — Paciente</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app-root">
+      <header class="header">
+        <div class="header__text">
+          <h1>Consulta de cadastro SUS</h1>
+          <p class="header__sub">
+            Fonte: Secretaria de Estado de Saúde de MS (API Datasus). Os dados
+            exibidos são os retornados pelo serviço oficial.
+          </p>
+          <p class="header__legal">
+            Dados pessoais e de saúde: trate com confidencialidade e use em ambiente
+            controlado, em conformidade com a LGPD e regras da sua instituição.
+          </p>
+        </div>
+        <div class="header__brand" aria-hidden="true">SUS / MS</div>
+      </header>
+
+      <section class="card search-card" id="search-card" aria-labelledby="titulo-busca">
+        <h2 id="titulo-busca">Buscar paciente</h2>
+        <p class="hint">Escolha o tipo de documento e informe apenas os números (a pontuação é inserida automaticamente no CPF).</p>
+        <p class="hint hint--legal">
+          Não deixe a tela acessível a pessoas não autorizadas; ao terminar, use <strong>Limpar</strong> ou <strong>Ocultar dados do paciente</strong>.
+        </p>
+
+        <div class="mode-toggle" role="group" aria-label="Tipo de busca">
+          <label class="mode-toggle__item">
+            <input type="radio" name="modo-busca" id="modo-cns" value="cns" checked />
+            <span class="mode-toggle__label">CNS</span>
+          </label>
+          <label class="mode-toggle__item">
+            <input type="radio" name="modo-busca" id="modo-cpf" value="cpf" />
+            <span class="mode-toggle__label">CPF</span>
+          </label>
+        </div>
+
+        <form id="form-busca" class="form" autocomplete="off">
+          <label class="field" id="wrap-cns">
+            <span>Cartão Nacional de Saúde (15 dígitos)</span>
+            <input
+              type="text"
+              id="input-cns"
+              name="cns"
+              inputmode="numeric"
+              maxlength="19"
+              placeholder="Ex.: 708 0003 9287 6825"
+              aria-describedby="hint-cns count-cns"
+            />
+            <span class="field__row">
+              <span class="field__hint" id="hint-cns">15 números do cartão SUS.</span>
+              <span class="field__count" id="count-cns" aria-live="polite">0/15</span>
+            </span>
+          </label>
+          <label class="field" id="wrap-cpf" hidden>
+            <span>CPF (11 dígitos)</span>
+            <input
+              type="text"
+              id="input-cpf"
+              name="cpf"
+              inputmode="numeric"
+              maxlength="14"
+              placeholder="Ex.: 054.607.451-01"
+              aria-describedby="hint-cpf count-cpf"
+            />
+            <span class="field__row">
+              <span class="field__hint" id="hint-cpf">11 números do CPF.</span>
+              <span class="field__count" id="count-cpf" aria-live="polite">0/11</span>
+            </span>
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn btn--primary" id="btn-buscar">Consultar</button>
+            <button type="button" class="btn btn--ghost" id="btn-limpar">Limpar</button>
+          </div>
+        </form>
+        <p id="status-consulta" class="msg msg--status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+        <p class="hint hint--shortcuts no-print" id="hint-atalhos">
+          Atalhos: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> consultar · <kbd>Ctrl</kbd>+<kbd>K</kbd> foco no documento
+        </p>
+        <div id="live-erro" class="sr-only" aria-live="polite"></div>
+        <p id="msg-erro" class="msg msg--erro" role="alert" hidden></p>
+      </section>
+
+      <section id="session-recent" class="card session-recent no-print" hidden aria-labelledby="titulo-recentes">
+        <h3 id="titulo-recentes" class="session-recent__title">Consultas nesta aba (memória)</h3>
+        <p class="hint session-recent__sub">Clique para preencher o documento e consultar de novo. Os dados não são gravados em disco.</p>
+        <ul class="session-recent__list" id="session-recent-list"></ul>
+      </section>
+
+      <div
+        id="resultado"
+        class="resultado"
+        hidden
+        aria-busy="false"
+        aria-label="Resultado da consulta"
+      >
+        <div id="resultado-skeleton" class="resultado-skeleton" hidden>
+          <div class="card hero hero--skeleton">
+            <div class="hero__row">
+              <div class="skeleton skeleton--avatar" aria-hidden="true"></div>
+              <div class="hero__text-skel">
+                <div class="skeleton skeleton--line skeleton--lg"></div>
+                <div class="skeleton skeleton--line skeleton--md"></div>
+              </div>
+            </div>
+          </div>
+          <div class="skeleton-tabs" aria-hidden="true">
+            <div class="skeleton skeleton--pill"></div>
+            <div class="skeleton skeleton--pill"></div>
+            <div class="skeleton skeleton--pill"></div>
+          </div>
+          <div class="card">
+            <div class="skeleton skeleton--line"></div>
+            <div class="skeleton skeleton--line"></div>
+            <div class="skeleton skeleton--line skeleton--short"></div>
+          </div>
+        </div>
+
+        <div id="resultado-conteudo" class="resultado-conteudo area-impressao" hidden>
+          <p id="comparacao-msg" class="msg msg--compare no-print" role="status" hidden></p>
+
+          <div class="card resumo-exec no-print" id="resumo-exec">
+            <h3 class="resumo-exec__title">Resumo para atendimento</h3>
+            <pre class="resumo-exec__text" id="resumo-lines" aria-live="polite"></pre>
+            <div class="resumo-exec__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-copiar-resumo">Copiar resumo</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-copiar-endereco">Copiar endereço completo</button>
+            </div>
+          </div>
+
+          <div class="card hero" id="hero-nome">
+            <div class="hero__row">
+              <div class="hero__avatar" id="hero-avatar" aria-hidden="true">—</div>
+              <div class="hero__body">
+                <h2 class="hero__nome" id="out-nome"></h2>
+                <div class="hero__badges no-print" id="hero-badges" aria-label="Indicadores do cadastro"></div>
+                <div class="hero__chips" id="out-chips"></div>
+              </div>
+            </div>
+            <div class="hero__toolbar no-print" id="hero-toolbar">
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-nova-consulta">Nova consulta</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-exportar-txt" title="Baixar relatório em texto (.txt)">Exportar .txt</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-exportar-pdf" title="Baixar relatório em PDF">Exportar PDF</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-exportar-xlsx" title="Baixar relatório em Excel (.xlsx)">Exportar Excel</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-imprimir" title="Imprimir (Ctrl+P)">Imprimir</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-ocultar-dados">Ocultar dados do paciente</button>
+            </div>
+          </div>
+
+          <div class="tabs" data-tabs>
+            <div class="tabs__list-wrap">
+              <div
+                class="tabs__list"
+                role="tablist"
+                aria-label="Seções do cadastro"
+                id="tablist-principal"
+              >
+                <button type="button" class="tabs__tab" role="tab" id="tab-id" aria-selected="true" aria-controls="panel-id" tabindex="0">
+                  Identificação
+                </button>
+                <button type="button" class="tabs__tab" role="tab" id="tab-demo" aria-selected="false" aria-controls="panel-demo" tabindex="-1">
+                  Filiação
+                </button>
+                <button type="button" class="tabs__tab" role="tab" id="tab-doc" aria-selected="false" aria-controls="panel-doc" tabindex="-1">
+                  Documentos
+                </button>
+                <button type="button" class="tabs__tab" role="tab" id="tab-nat" aria-selected="false" aria-controls="panel-nat" tabindex="-1">
+                  Naturalidade
+                </button>
+                <button type="button" class="tabs__tab" role="tab" id="tab-end" aria-selected="false" aria-controls="panel-end" tabindex="-1">
+                  Endereço
+                </button>
+                <button type="button" class="tabs__tab" role="tab" id="tab-cont" aria-selected="false" aria-controls="panel-cont" tabindex="-1">
+                  Contato e situação
+                </button>
+              </div>
+            </div>
+
+            <div class="tabs__panels">
+              <section
+                class="tabs__panel card"
+                role="tabpanel"
+                id="panel-id"
+                aria-labelledby="tab-id"
+              >
+                <h3 class="tabs__panel-title">Identificação</h3>
+                <dl class="grid-dl" id="dl-id"></dl>
+              </section>
+              <section
+                class="tabs__panel card is-hidden"
+                role="tabpanel"
+                id="panel-demo"
+                aria-labelledby="tab-demo"
+                hidden
+              >
+                <h3 class="tabs__panel-title">Filiação e demografia</h3>
+                <dl class="grid-dl" id="dl-demo"></dl>
+              </section>
+              <section
+                class="tabs__panel card is-hidden"
+                role="tabpanel"
+                id="panel-doc"
+                aria-labelledby="tab-doc"
+                hidden
+              >
+                <h3 class="tabs__panel-title">Documentos e cartão SUS</h3>
+                <dl class="grid-dl" id="dl-doc"></dl>
+              </section>
+              <section
+                class="tabs__panel card is-hidden"
+                role="tabpanel"
+                id="panel-nat"
+                aria-labelledby="tab-nat"
+                hidden
+              >
+                <h3 class="tabs__panel-title">Nascimento e naturalidade</h3>
+                <dl class="grid-dl" id="dl-nat"></dl>
+              </section>
+              <section
+                class="tabs__panel card is-hidden"
+                role="tabpanel"
+                id="panel-end"
+                aria-labelledby="tab-end"
+                hidden
+              >
+                <h3 class="tabs__panel-title">Endereço</h3>
+                <dl class="grid-dl" id="dl-end"></dl>
+              </section>
+              <section
+                class="tabs__panel card is-hidden"
+                role="tabpanel"
+                id="panel-cont"
+                aria-labelledby="tab-cont"
+                hidden
+              >
+                <h3 class="tabs__panel-title">Contato</h3>
+                <dl class="grid-dl" id="dl-cont"></dl>
+                <h3 class="tabs__panel-title tabs__panel-title--sub">Qualidade e situação do cadastro</h3>
+                <dl class="grid-dl" id="dl-sit"></dl>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p id="msg-vazio" class="msg msg--empty">
+        Nenhum resultado ainda. Use o formulário acima para consultar por CNS ou CPF.
+      </p>
+    </div>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
