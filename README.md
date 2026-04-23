@@ -1,5 +1,7 @@
 # Consulta Datasus (MS) — Paciente
 
+Repositório: **pesquisa-sus** (`Eduardo-ale/pesquisa-sus`).
+
 Aplicação web local que consulta o cadastro de paciente no serviço estadual ligado ao Datasus (Mato Grosso do Sul) e exibe os dados em uma interface no navegador.
 
 ## Como funciona
