@@ -17,7 +17,15 @@ from fastapi.staticfiles import StaticFiles
 
 BASE_URL = "https://core.saude.ms.gov.br/r2/web/datasus/index.php"
 STATIC_DIR = Path(__file__).parent / "static"
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+# Cabeçalhos próximos de um navegador real — alguns WAFs bloqueiam clientes “minimalistas”.
+HEADERS_DATASUS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/json, text/javascript, */*;q=0.01",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://core.saude.ms.gov.br/",
+    "Origin": "https://core.saude.ms.gov.br",
+}
 
 app = FastAPI(title="Consulta Datasus (MS)")
 
@@ -76,10 +84,20 @@ async def get_paciente(
 
     try:
         async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
-            r = await client.get(url, headers={"User-Agent": USER_AGENT})
+            r = await client.get(url, headers=HEADERS_DATASUS)
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Falha ao contatar a API: {e!s}") from e
 
+    if r.status_code == 403:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "API do MS retornou 403 (acesso negado). "
+                "Muitas vezes isso ocorre quando o servidor roda fora do Brasil (ex.: nuvem EUA). "
+                "Teste rodando o app no seu PC ou em um VPS no Brasil; se local funcionar e na nuvem não, "
+                "o bloqueio é pelo destino da API, não pelo código da aplicação."
+            ),
+        )
     if r.status_code != 200:
         raise HTTPException(
             status_code=502,
@@ -109,6 +127,15 @@ def pagina_inicial():
     if not index.is_file():
         raise HTTPException(status_code=500, detail="index.html não encontrada em static/.")
     return FileResponse(index, media_type="text/html; charset=utf-8")
+
+
+@app.head("/")
+def pagina_inicial_head():
+    """Evita 405 em HEAD / (alguns proxies e verificações de URL usam só HEAD)."""
+    index = STATIC_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=500, detail="index.html não encontrada em static/.")
+    return Response(status_code=200, media_type="text/html; charset=utf-8")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
